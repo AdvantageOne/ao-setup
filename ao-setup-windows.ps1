@@ -4,6 +4,7 @@
 #   1. Git + Python   2. Pillow (logo tool)   3. Browser check (PDF export)
 #   4. GitHub sign-in with a code (no password typed here) + check you can see AO's plugins
 #   5. Netlify publishing token (optional, to publish live proposal links)   6. Git name/email for records
+#   7. AO plugins: turn on auto-update and bring them up to date now
 # Tools it adds without admin rights live in %USERPROFILE%\.ao-tools. It never prints or uploads your tokens.
 
 $TeamSlug = "andrew-up4p-uk"
@@ -22,7 +23,7 @@ RefreshPath
 
 H "AdvantageOne Claude setup (Windows)"
 
-H "1/6 Git and Python"
+H "1/7 Git and Python"
 $winget = Has "winget"
 if (-not (Has "git")) {
   if ($winget) { Write-Host "  Installing Git (click Yes if Windows asks)..."; winget install --id Git.Git -e --silent --accept-source-agreements --accept-package-agreements | Out-Null; RefreshPath }
@@ -37,16 +38,16 @@ else {
   Read-Host "Press Enter to close"; return
 }
 
-H "2/6 Logo tool (Pillow)"
+H "2/7 Logo tool (Pillow)"
 py -3 -c "import PIL" 2>$null
 if ($LASTEXITCODE -eq 0) { Ok "Pillow installed" }
 else { py -3 -m pip install --user --quiet --disable-pip-version-check pillow 2>$null; if ($LASTEXITCODE -eq 0) { Ok "Pillow installed" } else { Bad "Couldn't install Pillow" } }
 
-H "3/6 Browser for PDF export"
+H "3/7 Browser for PDF export"
 $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe") | Where-Object { Test-Path $_ }
 if ($edge) { Ok "Found" } else { Warn "Install Google Chrome or Microsoft Edge so decks can be saved as PDF." }
 
-H "4/6 GitHub sign-in"
+H "4/7 GitHub sign-in"
 $gh = (Get-Command gh -ErrorAction SilentlyContinue).Source
 if (-not $gh) {
   try {
@@ -74,7 +75,7 @@ git ls-remote $Repo HEAD *> $null
 if ($LASTEXITCODE -eq 0) { Ok "Signed in as $login and can see AO's plugins" }
 else { Bad "Signed in as $login, but this account can't see AO's plugins. Send Andrew your GitHub name ($login)." }
 
-H "5/6 Publishing live links (Netlify)"
+H "5/7 Publishing live links (Netlify)"
 function NlCheck($tok) {
   try {
     $h = @{ Authorization = "Bearer $tok"; "User-Agent" = "ao-setup" }
@@ -106,7 +107,7 @@ else {
   } else { Write-Host "  [!]  Skipped. Proposals still build (folder + PDF); run this again later to publish live links." -ForegroundColor Yellow }
 }
 
-H "6/6 Your name on knowledge-base records"
+H "6/7 Your name on knowledge-base records"
 if (-not (git config --global user.email)) {
   $name = & $gh api user --jq '.name // ""' 2>$null; $email = & $gh api user --jq '.email // ""' 2>$null
   if ($email -notmatch "@(advtracking\.net|advtracking\.ca|advantageone\.tech)$") { $email = Read-Host "  Your work email (for your name on records)" }
@@ -116,6 +117,33 @@ if (-not (git config --global user.email)) {
 }
 Ok "$(git config --global user.name) <$(git config --global user.email)>"
 
+H "7/7 AO plugins up to date"
+# Claude keeps a copy of AO's plugins and only refreshes it when auto-update is on for the "advantageone" source.
+# This turns it on, then updates now. Uses the GitHub sign-in from step 4; nothing is typed here.
+$Cl = (Get-Command claude -ErrorAction SilentlyContinue).Source
+if (-not $Cl) { $Cl = (Get-ChildItem (Join-Path $env:APPDATA "Claude\claude-code") -Recurse -Filter claude.exe -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1).FullName }
+$Km = Join-Path $HOME ".claude\plugins\known_marketplaces.json"
+if (-not $Cl -or -not (Test-Path $Km)) {
+  Warn "Not installed yet. Finish the steps below (open Claude, say: set up AO proposals), then run this again."
+} else {
+  try {
+    $d = Get-Content $Km -Raw | ConvertFrom-Json
+    if ($d.advantageone -and $d.advantageone.autoUpdate -ne $true) {
+      $d.advantageone | Add-Member -NotePropertyName autoUpdate -NotePropertyValue $true -Force
+      [IO.File]::WriteAllText($Km, ($d | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding $false))
+    }
+  } catch { }
+  $env:CLAUDE_CODE_PLUGIN_PREFER_HTTPS = "1"
+  & $Cl plugin marketplace update advantageone *> $null
+  if ($LASTEXITCODE -eq 0) {
+    foreach ($P in "ao-proposals", "ao-briefing") { & $Cl plugin update "$P@advantageone" *> $null }
+    $V = @()
+    try { $V = @((& $Cl plugin list --json 2>$null | Out-String | ConvertFrom-Json) | Where-Object { $_.id -like "*@advantageone" } | ForEach-Object { ($_.id -split "@")[0] + " " + $_.version }) } catch { }
+    if ($V) { Ok ("Up to date, auto-update on: " + ($V -join ", ")) } else { Ok "Auto-update on (plugins install when you say: set up AO proposals)" }
+  } else { Bad "Couldn't reach AO's plugins on GitHub. Check step 4 above, then run this again." }
+}
+
 if ($Done) { H "All set!" } else { H "Almost there: fix the [!]/[X] lines above, then run this again." }
 Write-Host "  Next: quit Claude completely (right-click its taskbar icon -> Quit), reopen it, go to the Code tab and say:  set up AO proposals"
+Write-Host "  (Already set up? Quitting and reopening Claude loads the updated plugins.)"
 Read-Host "Press Enter to close"
