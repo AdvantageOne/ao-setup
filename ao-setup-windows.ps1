@@ -136,7 +136,7 @@ if (-not $Cl -or -not (Test-Path $Km)) {
   $env:CLAUDE_CODE_PLUGIN_PREFER_HTTPS = "1"
   & $Cl plugin marketplace update advantageone *> $null
   if ($LASTEXITCODE -eq 0) {
-    foreach ($P in "ao-proposals", "ao-briefing") { & $Cl plugin update "$P@advantageone" *> $null }
+    foreach ($P in "ao-proposals", "ao-briefing", "ao-orders") { & $Cl plugin update "$P@advantageone" *> $null }
     $V = @()
     try { $V = @((& $Cl plugin list --json 2>$null | Out-String | ConvertFrom-Json) | Where-Object { $_.id -like "*@advantageone" } | ForEach-Object { ($_.id -split "@")[0] + " " + $_.version }) } catch { }
     if ($V) { Ok ("Up to date, auto-update on: " + ($V -join ", ")) } else { Ok "Auto-update on (plugins install when you say: set up AO proposals)" }
