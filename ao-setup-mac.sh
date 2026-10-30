@@ -114,7 +114,7 @@ if "advantageone" in d and d["advantageone"].get("autoUpdate") is not True:
     d["advantageone"]["autoUpdate"]=True; json.dump(d,open(p,"w"),indent=2)
 PYEOF
   if CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1 "$CL" plugin marketplace update advantageone </dev/null >/dev/null 2>&1; then
-    for P in ao-proposals ao-briefing; do "$CL" plugin update "$P@advantageone" </dev/null >/dev/null 2>&1; done
+    for P in ao-proposals ao-briefing ao-orders; do "$CL" plugin update "$P@advantageone" </dev/null >/dev/null 2>&1; done
     V=$("$CL" plugin list --json </dev/null 2>/dev/null | $PY -c "import json,sys;print(', '.join(p['id'].split('@')[0]+' '+str(p.get('version')) for p in json.load(sys.stdin) if p['id'].endswith('@advantageone')))" 2>/dev/null)
     if [ -n "$V" ]; then ok "Up to date, auto-update on: $V"; else ok "Auto-update on (plugins install when you say: set up AO proposals)"; fi
   else bad "Couldn't reach AO's plugins on GitHub. Check step 4 above, then run this again."; DONE=0; fi
